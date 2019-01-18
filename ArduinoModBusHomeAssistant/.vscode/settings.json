@@ -1,0 +1,6 @@
+{
+    "terminal.integrated.env.osx": {
+        "PATH": "/Users/andreacarrara/.platformio/penv/bin:/Users/andreacarrara/.platformio/penv:/Library/Frameworks/Python.framework/Versions/3.6/bin:/usr/local/git/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/share/dotnet:/opt/X11/bin:/Library/Frameworks/Mono.framework/Versions/Current/Commands:/Users/andreacarrara/Documents/esp8266/xtensa-lx106-elf/bin",
+        "PLATFORMIO_CALLER": "vscode"
+    }
+}
