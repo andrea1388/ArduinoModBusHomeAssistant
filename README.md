@@ -13,6 +13,11 @@ Inputs and outputs are mapped to binary_inputs register and binary_outputs regis
 
 See electical schematic for details.
 
+This hardware can serve to many goals:
+it can be a headless remote actuator (a switch) to control a load (a lihgt, a motor, etc)
+it can be a headless remote sensor for temperature reading of to check magnetic sensors
+it can have a display and buttons to show temperature or control lighs or other devices
+
 Modbus registers map
 All registers are 16 bits wide
 

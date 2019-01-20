@@ -21,10 +21,24 @@ void setup() {
 }
 
 void loop() {
-  int state;
-  state = slave.poll( modbusregisters, 9 );
-  reset_binary_inputs_register();
+  DoReadTemperature();
+  DoReadInputs();
+  if (DoModBus()) {
+    DoWriteOutputRegister();
+    DoResetInputRegister();
+  }
+  DoThermostat();
+  DoUpdateDisplay();
   
+  
+}
+
+bool DoModBus() {
+  int8_t state;
+  state = slave.poll( modbusregisters, 9 );
+  if (state > 4) {
+    flashledpoll();
+  }
 }
 
 void regtoio()
@@ -37,7 +51,7 @@ void regtoio()
     if(!digitalRead( inputpins[i] )) bitSet(modbusregisters[BINARY_INPUTS],i);
 }
 
-reset_binary_inputs_register() {
+void reset_binary_inputs_register() {
   for(uint8_t i=0;i<inputnum;i++)
     if(digitalRead( inputpins[i] )) bitClear(modbusregisters[BINARY_INPUTS],0);
 }
