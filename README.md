@@ -22,9 +22,10 @@ Modbus registers map
 All registers are 16 bits wide
 
 reg#    reg name                    function
-0       target_temp_register_low    setpoint temperature
-1       target_temp_register_high
-2       current_temp_register_low   current tempperature read by sensor
-3       current_temp_register_high
+0       TARGET_TEMP_REGISTER_LOW    setpoint temperature
+1       TARGET_TEMP_REGISTER_HIGH
+2       CURRENT_TEMP_REGISTER_LOW   current tempperature read by sensor
+3       CURRENT_TEMP_REGISTER_HIGH
 4       BINARY_INPUTS               read the inputs connected (read only)
 5       BINARY_OUTPUTS              read and set the outputs connected
+6       BINARY_OUTPUTS_LIGHTS       read and set the outputs connected (a light output is also controlled by a pin connected to a switch button)
