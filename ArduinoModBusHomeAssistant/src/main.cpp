@@ -8,7 +8,7 @@
 #include <Adafruit_SSD1306.h>
 #include <jled.h>
 
-#define DEBUG
+//#define DEBUG
 #define SERIALSPEED 19200 
 #define ID 1
 #define PIN485TXEN 6
@@ -16,19 +16,22 @@
 #define OUTPUTPINS {3} // list of output pins, MAX 16!!
 #define LIGHTOUTPUTPINS {10} // list of light output pins, MAX 16!!
 #define LIGHTCONTROLPINS {8} // must be the same number of pins of LIGHTOUTPUTPINS array
+#define HEATHERCONTROPIN 11
+
 // Modbus registers definition
-#define TARGET_TEMP_REGISTER_LOW 0
-#define TARGET_TEMP_REGISTER_HIGH 1
-#define CURRENT_TEMP_REGISTER_LOW 2
-#define CURRENT_TEMP_REGISTER_HIGH 3
+#define TARGET_TEMP_REGISTER_HIGH 0
+#define TARGET_TEMP_REGISTER_LOW 1
+#define CURRENT_TEMP_REGISTER_HIGH 2
+#define CURRENT_TEMP_REGISTER_LOW 3
 #define BINARY_INPUTS 4
 #define BINARY_OUTPUTS 5
 #define BINARY_OUTPUTS_LIGHTS 6
+#define ACMODE 7
 
 
 // global objects
 Modbus slave(ID, 0, PIN485TXEN);
-uint16_t modbusregisters[9];
+uint16_t modbusregisters[8];
 uint8_t inputpins[]=INPUTPINS;
 uint8_t outputpins[]=OUTPUTPINS;
 uint8_t lightoutputpins[]=LIGHTOUTPUTPINS;
@@ -39,18 +42,21 @@ uint8_t lightnum=  sizeof(outputpins) / sizeof(uint8_t);
 JLed led = JLed(LED_BUILTIN).Blink(50,50).Repeat(5);
 Button *lightcontrolbutton[16];
 Adafruit_SSD1306 display(128, 32, &Wire, -1);
-
+//float current_temperature, target_temperature;
+bool update_display; // if set to true cause the display to be updated
+bool ACMode=false;
 
 // function prototypes
 void DoWriteOutputRegister();
 void DoResetInputRegister();
 void DoUpdateDisplay();
 void DoLightControl();
-float readds();
-
+void ReadTemperaureSensor();
+void DoProcessOtherRegisters();
 
 void setup() {
   slave.begin(SERIALSPEED);
+  pinMode(HEATHERCONTROPIN,OUTPUT);
   for(uint8_t i=0;i<inputnum;i++)
     pinMode(inputpins[i],INPUT_PULLUP);
   for(uint8_t i=0;i<lightnum;i++)
@@ -64,7 +70,6 @@ void setup() {
     lightcontrolbutton[i]=new Button(lightcontrolpins[i]);
     lightcontrolbutton[i]->begin();
   }
-  DoWriteOutputRegister();
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C for 128x32
     Serial.println(F("SSD1306 allocation failed"));
   }
@@ -84,6 +89,16 @@ void setup() {
     }
     Serial.println("");
   #endif
+  //target_temperature=20.0;
+  union Float {
+    float    m_float;
+    uint16_t  m_sh[sizeof(float)/2];
+  } target_temperature;
+  target_temperature.m_float=20.0;
+  modbusregisters[TARGET_TEMP_REGISTER_HIGH]=target_temperature.m_sh[1];
+  modbusregisters[TARGET_TEMP_REGISTER_LOW]=target_temperature.m_sh[0];
+  ReadTemperaureSensor();
+  update_display=true;
 }
 
 
@@ -94,12 +109,13 @@ void setup() {
 void polled() {
   DoWriteOutputRegister();
   DoResetInputRegister();
-  led.Blink(50,50);
+  DoProcessOtherRegisters();
+  led.Blink(50,50).Repeat(1);;
 }
 
-bool DoModBus() {
+void DoModBus() {
   int8_t state;
-  state = slave.poll( modbusregisters, 9 );
+  state = slave.poll( modbusregisters, 8 );
   if (state > 4) {
     polled();
   }
@@ -130,28 +146,65 @@ void DoWriteOutputRegister() {
     digitalWrite( lightoutputpins[i], bitRead( modbusregisters[BINARY_OUTPUTS_LIGHTS], i ));
 }
 
+void DoProcessOtherRegisters() {
+  static float f;
+  ACMode=(bool)modbusregisters[ACMode];
+  if(f!=(float)*(modbusregisters+TARGET_TEMP_REGISTER_HIGH))
+  {
+    f=(float)*(modbusregisters+TARGET_TEMP_REGISTER_HIGH);
+    update_display=true;
+  }
+}
+
+void TurnOnHeater() {
+  digitalWrite(HEATHERCONTROPIN, HIGH);
+}
+void TurnOffHeater() {
+  digitalWrite(HEATHERCONTROPIN, LOW);
+}
 void DoThermostat() {
-  const float t=(float)*(modbusregisters+TARGET_TEMP_REGISTER_HIGH);
-
+  union Float {
+    float    m_float;
+    uint16_t  m_sh[sizeof(float)/2];
+  } t,s;
+  t.m_sh[0]=modbusregisters[CURRENT_TEMP_REGISTER_LOW];
+  t.m_sh[1]=modbusregisters[CURRENT_TEMP_REGISTER_HIGH];
+  s.m_sh[0]=modbusregisters[TARGET_TEMP_REGISTER_LOW];
+  s.m_sh[1]=modbusregisters[TARGET_TEMP_REGISTER_HIGH];
+  if(t.m_float<s.m_float) TurnOnHeater(); else TurnOffHeater();
 }
 
-void DoReadTemperature() {
-  float t=readds();
-  memcpy(modbusregisters+TARGET_TEMP_REGISTER_HIGH,&t,4);
 
-}
 
 void loop() {
-  DoReadTemperature();
+  ReadTemperaureSensor();
   DoReadInputs();
   DoLightControl();
   DoModBus();
   DoThermostat();
-  DoUpdateDisplay();
+  DoUpdateDisplay(); // if necessary
   led.Update();
 }
 
 void DoUpdateDisplay() {
+  if(!update_display) return;
+
+  union Float {
+    float    m_float;
+    uint16_t  m_sh[sizeof(float)/2];
+  } t,s;
+  t.m_sh[0]=modbusregisters[CURRENT_TEMP_REGISTER_LOW];
+  t.m_sh[1]=modbusregisters[CURRENT_TEMP_REGISTER_HIGH];
+  s.m_sh[0]=modbusregisters[TARGET_TEMP_REGISTER_LOW];
+  s.m_sh[1]=modbusregisters[TARGET_TEMP_REGISTER_HIGH];
+
+  display.clearDisplay();
+  display.setCursor(0, 0); 
+  display.print("Temp: ");
+  display.println(t.m_float,1);
+  display.print("Setp: ");
+  display.print(s.m_float,1);
+  display.display();
 
 }
 
@@ -164,7 +217,13 @@ void DoLightControl() {
     }
 }
 
-float readds() {
-  float f=20.1;
-  return f;
+void ReadTemperaureSensor() {
+  union Float {
+    float    m_float;
+    uint16_t  m_sh[sizeof(float)/2];
+  } current_temperature;
+  current_temperature.m_float=20.1;
+  modbusregisters[CURRENT_TEMP_REGISTER_HIGH]=current_temperature.m_sh[1];
+  modbusregisters[CURRENT_TEMP_REGISTER_LOW]=current_temperature.m_sh[0];
+  //memcpy(modbusregisters+CURRENT_TEMP_REGISTER_HIGH,&current_temperature, 4);
 }
