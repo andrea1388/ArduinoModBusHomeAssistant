@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <ModbusRtu.h> // https://github.com/smarmengol/Modbus-Master-Slave-for-Arduino
-// #include <OneWire.h> // https://github.com/PaulStoffregen/OneWire
+#include <OneWire.h> // https://github.com/PaulStoffregen/OneWire
+#include <DallasTemperature.h>
 #include <JC_Button.h>          // https://github.com/JChristensen/JC_Button
 #include <SPI.h>
 #include <Wire.h>
@@ -8,11 +9,12 @@
 #include <Adafruit_SSD1306.h>
 #include <jled.h>
 
-//#define DEBUG
+// #define DEBUG
 #define SERIALSPEED 19200 
 #define ID 1
 #define PIN485TXEN 6
-#define INPUTPINS {2} // list of input pins, MAX 16!!
+#define ONE_WIRE_BUS 2
+#define INPUTPINS {4} // list of input pins, MAX 16!!
 #define OUTPUTPINS {3} // list of output pins, MAX 16!!
 #define LIGHTOUTPUTPINS {10} // list of light output pins, MAX 16!!
 #define LIGHTCONTROLPINS {8} // must be the same number of pins of LIGHTOUTPUTPINS array
@@ -45,6 +47,9 @@ Adafruit_SSD1306 display(128, 32, &Wire, -1);
 //float current_temperature, target_temperature;
 bool update_display; // if set to true cause the display to be updated
 bool ACMode=false;
+OneWire oneWire(ONE_WIRE_BUS); 
+DallasTemperature sensors(&oneWire);
+DeviceAddress insideThermometer;
 
 // function prototypes
 void DoWriteOutputRegister();
@@ -70,15 +75,24 @@ void setup() {
     lightcontrolbutton[i]=new Button(lightcontrolpins[i]);
     lightcontrolbutton[i]->begin();
   }
+  delay(100); 
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3C for 128x32
     Serial.println(F("SSD1306 allocation failed"));
   }
+  
+  display.display();
+  delay(100); 
   display.clearDisplay();
   display.setTextSize(2); 
   display.setTextColor(WHITE);
   display.setCursor(0, 0); 
   display.print("Started");
   display.display();
+  // setup temp sensor
+  sensors.begin(); 
+  oneWire.reset_search();
+  oneWire.search(insideThermometer);
+  sensors.setResolution(insideThermometer, 12);
   #ifdef DEBUG
     Serial.println("Started");
     Serial.print("input pins: ");
@@ -88,6 +102,27 @@ void setup() {
       Serial.print("/");
     }
     Serial.println("");
+    // ds18b20
+    Serial.print("Found ");
+    Serial.print(sensors.getDeviceCount(), DEC);
+    Serial.println(" devices.");
+    Serial.print("Parasite power is: "); 
+    if (sensors.isParasitePowerMode()) Serial.println("ON");
+    else Serial.println("OFF");
+    Serial.print("Device 0 Address: ");
+    for (uint8_t i = 0; i < 8; i++)
+    {
+      if (insideThermometer[i] < 16) Serial.print("0");
+      Serial.print(insideThermometer[i], HEX);
+    }
+    Serial.println();
+    sensors.requestTemperatures();
+    float tempC = sensors.getTempC(insideThermometer);
+    Serial.print("Temp C: ");
+    Serial.print(tempC);
+    Serial.print("Device 0 Resolution: ");
+    Serial.print(sensors.getResolution(insideThermometer), DEC); 
+    Serial.println();
   #endif
   //target_temperature=20.0;
   union Float {
@@ -218,11 +253,13 @@ void DoLightControl() {
 }
 
 void ReadTemperaureSensor() {
+
   union Float {
     float    m_float;
     uint16_t  m_sh[sizeof(float)/2];
   } current_temperature;
-  current_temperature.m_float=20.1;
+  sensors.requestTemperatures();
+  current_temperature.m_float = sensors.getTempC(insideThermometer);
   modbusregisters[CURRENT_TEMP_REGISTER_HIGH]=current_temperature.m_sh[1];
   modbusregisters[CURRENT_TEMP_REGISTER_LOW]=current_temperature.m_sh[0];
   //memcpy(modbusregisters+CURRENT_TEMP_REGISTER_HIGH,&current_temperature, 4);

@@ -1,0 +1,8 @@
+relè
+sens. temp
+i2c per display
+spi?
+input pulsanti/sensori (morsettiera)
+mors cavo bus
+485
+led stato/vcc
