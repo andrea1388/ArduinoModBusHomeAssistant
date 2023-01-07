@@ -1,4 +1,7 @@
 # ArduinoModBusHomeAssistant
+
+Also giva a look at this instructables page [https://www.instructables.com/Arduino-for-a-Wired-Home-Assistant-Network/](https://www.instructables.com/Arduino-for-a-Wired-Home-Assistant-Network/)
+
 Arduino sketch for modbus implementation of sensor, switch and thermostat to use with Home Assistant.
 This code make the arduino (I've used an a 5V nano) act a Modbus device than  can be connected to a Home Assistant controller. Connectione can be made via a usb cable or via 485 bus. Only in this mode you can connect more than a device and with long cables (more than 1000m).
 Home Assistant deals with 4 types of device:
